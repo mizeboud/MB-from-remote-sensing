@@ -1,10 +1,25 @@
 ## 2D MB estimation for swiss glacier
-# Brute force approach: calculate for multiple parameter set.
-# Process and save output; evaluation at later stage.
+'''
+Brute force approach: calculate 2D distributed MB estimates for multiple approaches and parameter set.
+The process is split into multiple files (for clarity of processing and being able to re-do intermediate steps)
+The following files are run in sequence:
+
+bruteForce1: 
+    Calculates 2D flux divergence for each filtering approach (f000, f001, f110, f111) and all parameter combinations; 
+    2D fluxdiv fields stored as .tif per realization, per glacier (temporary output)
+bruteForce2: 
+    Converts fluxdiv to mass balance and applies density conversion (to m.w.e./yr)
+    2D fluxdiv and MB assembled into one netcdf per glacier containing all realizations(intermediate output)
+bruteForce3: 
+    Evaluates the MB from all approaches & hyperparameter space to GLAMOS stake and elevation-binned mass balance data. 
+    Saves evaluation metrics (RMSE) to netcdf (N,F,glacier)
+bruteForce4: 
+    Plots the evaluation metrics (RMSE) per approach, which is used (by authors) to select the best parameter combination for each approach.
+    Saves all glacier RMSE for the bestParam set in an excel (supplementary Table 1 in manuscript).
+    Extract and saves the (final) output (flux div & mass balance) of each glacier for the chosen best-parameter combination (.tiff).
 
 # author: M Izeboud
-# July 2025
-
+# July 2025'''
 
 # %% Imports
 
@@ -27,7 +42,6 @@ target_crs = 'EPSG:32632' ## EPSG of Millan2022 (50 m resolution), all files are
 data_dir = '../data/' ## data directory, where input data is stored and output will be saved
 
 ## TMP:
-homedir = '/Users/mizeboud/Documents/Documents_mizeboud/PostDoc/2D-SMB/'
 data_dir = '/Users/mizeboud/Documents/Data_iCloud/SMB2D/'
 path2glacier_output = os.path.join(data_dir,'bruteForceTMP/glaciers/')
 
