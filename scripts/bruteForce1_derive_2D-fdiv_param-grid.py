@@ -268,10 +268,14 @@ print(f"Total parameter combinations: {len(param_grid)}")
 LOOP GLACIERS
 ------------------'''
 
+## process subset for demo: 
+rgi_to_process = ['RGI60-11.02773', 'RGI60-11.01450'] # Aletsch & Findel glacier
+gdf_swiss_large = gdf_swiss_large[gdf_swiss_large['RGIId'].isin(rgi_to_process)].reset_index(drop=True)
+
 t0 = time.time()
-# for gi in tqdm(range(len(gdf_swiss_large)), desc="Processing glaciers"):  ## process all
+for gi in tqdm(range(len(gdf_swiss_large)), desc="Processing glaciers"):  ## process all (in selected subset)
 # for gi in tqdm(range(0, 3), desc="Processing glaciers"):  ## process only first glacier for testing
-for gi in tqdm(range(len(gdf_swiss_large)-1, len(gdf_swiss_large)), desc="Processing glaciers"):  ## process last glacier (claridenfirn)
+# for gi in tqdm(range(len(gdf_swiss_large)-1, len(gdf_swiss_large)), desc="Processing glaciers"):  ## process last glacier (claridenfirn)
 
     '''##########################################
     Prep glacier data: 

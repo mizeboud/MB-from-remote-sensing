@@ -42,7 +42,7 @@ data_dir = '/Users/mizeboud/Documents/Data_iCloud/SMB2D/'
 
 ### General settings / paths
 target_crs = 'EPSG:32632' ## EPSG of Millan2022 (50 m resolution), all files are processed in this CRS.
-data_dir = '../data/' ## data directory, where input data is stored and output will be saved
+# data_dir = '../data/' ## data directory, where input data is stored and output will be saved
 path2glacier_output = os.path.join(data_dir,'bruteForceTMP/glaciers/')
 path2saveRSME = os.path.join(data_dir, 'bruteForceTMP/rmse2glamos/')
 
@@ -116,7 +116,7 @@ F_values = np.arange(0.75, 1.01, 0.05) # e.g., 0.75, 0.80, ..., 1.0
 Loop GLAMOS glaciers
 #################################################################### '''
 
-for glacier_sgiid in glamos_traintest.index[-3:-2]:
+for glacier_sgiid in glamos_traintest.index:
     ## glacier gdf
     df_glacier_sgi = df_glamos_sgi.loc[df_glamos_sgi['sgi-id']== glacier_sgiid] # select a row with multiple RGI  matches
     glacier_name = df_glacier_sgi['name'].item()
@@ -138,6 +138,10 @@ for glacier_sgiid in glamos_traintest.index[-3:-2]:
     else:
         glacier_rgiid = rgi_matches[0]
     gdf_glacier_rgi = gl_outline_swiss.loc[gl_outline_swiss['RGIId'] == glacier_rgiid].copy()
+
+    if not os.path.isdir(os.path.join(path2glacier_output, glacier_rgiid)):
+        print('No output-dir available yet for ', glacier_rgiid)
+        continue
 
     '''## Extract glacier elevation data for the RGI match (to the fluxdiv/smb calculation) and the RGI outlines'''
 
@@ -258,21 +262,14 @@ for glacier_sgiid in glamos_traintest.index[-3:-2]:
     # mb_error :Uncertainty of point mass balance as square root of the sum of squares of the fractional uncertainties of Density and Raw Balance [mm w.e.]) --> also divide by 1000
     --------------------'''
     
-    ## open stake measurement file from .csv (preprocessed to have unique stakeIDs)
-    pd_stake_data = pd.read_csv( os.path.join(data_dir,'GLAMOS/massbalance_point_2021_r2021/annual_preprocessed/', glacier_stakefile) )
-    pd_stake_data['mb_we'] = pd_stake_data['mb_we'] / 1000.0  # convert to m w.e.
-    pd_stake_data['mb_error'] = pd_stake_data['mb_error'] / 1000.0  # convert to m w.e.
-    ## add date0 and date1 as datetime
-    pd_stake_data['date0_dt'] = pd.to_datetime(pd_stake_data['date0'].astype(str), format='%Y%m%d')
-    pd_stake_data['date1_dt'] = pd.to_datetime(pd_stake_data['date1'].astype(str), format='%Y%m%d')
-
-
-    ## get timeseries only dhdt-period
-    ## NB: used 2015-2020 dhdt period for current SMB values, but should eventually use 2010-2020 period
-    pd_stake_data_yyyy = pd_stake_data.loc[ (pd_stake_data['date0_dt'].dt.year >= glamos_y0) & \
-                                            (pd_stake_data['date0_dt'].dt.year <= 2020)].copy()
-
-    y0_stakes = pd_stake_data_yyyy['date0_dt'].dt.year.min(); y1_stakes = pd_stake_data_yyyy['date0_dt'].dt.year.max()
+    pd_stake_data_yyyy, y0_stakes, y1_stakes = evalF.load_stake_data(
+        os.path.join(
+            data_dir,
+            'GLAMOS/massbalance_point_2021_r2021/annual_preprocessed/',
+            glacier_stakefile,
+        ),
+        start_year=glamos_y0,
+    )
 
     # assert y0_bins == y0_stakes and y1_bins == y1_stakes, \
     #     f"Mismatch in time periods between elevation-bins and stake data: bins=({y0_bins},{y1_bins}), stakes=({y0_stakes},{y1_stakes})."
@@ -302,126 +299,13 @@ for glacier_sgiid in glamos_traintest.index[-3:-2]:
         tmp_ds_list_f111_Ng.append(xr.concat(tmp_ds_list_f111_Nf, dim='Nfdiv'))
     ds_glacier_mb_f111 = xr.concat(tmp_ds_list_f111_Ng, dim='Ngrad') ## (Ng, Nlength, Fparam, y, x) in swiss_crs
 
-    '''## --------
-    ## get RMSE at stake locations
-        - exact stake location + std around stake (3x3 px window around stake)
-        - do this for every indiivudal stake reading. Then, aggregate to single stake value (using mean). For both stakeValue & std-around-stake value
+    pd_stake_data_yyyy_avg, pd_stake_data_incl_weights = evalF.stake_data_get_weights_and_summary(pd_stake_data_yyyy)
 
-    Error wrt UNIQUE stakes: 
-    - average smb from unique stakes (some stakes have multiple measurements, so average them to get one value per stake)
-    - predetermine weights for the weighted RMSE calculation, based on the number of measurements per stake (e.g. if one stake has 1 reading, weight=1; and if another stake has 20 readings, weight=20; weights will be normalized in weighted_rmse calculation)
-    -------------- '''
-    pd_stake_data_yyyy_avg = pd_stake_data_yyyy.groupby('matched_stakeID', observed=False).agg(
-                {'mb_we':['mean','min', 'max','count','std']}
-         )
-    ## unstack multiindex columns
-    pd_stake_data_yyyy_avg.columns = ['_'.join(col).strip() for col in pd_stake_data_yyyy_avg.columns.values]
-    pd_stake_data_yyyy_avg2 = pd_stake_data_yyyy.groupby('matched_stakeID', observed=False).agg(
-        {'mb_error':'mean',
-         'date0_dt':'first', 'date1_dt':'last'}
-         )
-    ## combine the two aggregated dataframes
-    pd_stake_data_yyyy_avg = pd.concat([pd_stake_data_yyyy_avg, 
-                                        pd_stake_data_yyyy_avg2], axis=1).reset_index()
+    ds_wrmse_stakes  = evalF.calculate_weighted_rmse_at_stakes(
+                                    ds_glacier_mb, ds_glacier_mb_f111, 
+                                    pd_stake_data_yyyy_avg, pd_stake_data_incl_weights )
+    # ds_wrmse_stakes is xr.dataset (Nlength, Fparam, Ngrad, Nfdiv) with variables rmse_f000, rmse_f001, rmse_f110, rmse_f111
 
-    ## get stake weight based on COUNT (normalize count)
-    pd_stake_data_yyyy_avg['stake_weight'] = pd_stake_data_yyyy_avg['mb_we_count'] / pd_stake_data_yyyy_avg['mb_we_count'].sum()
-
-    ## put stake weight in original dataframe
-    pd_stake_data_yyyy = pd.merge(pd_stake_data_yyyy, pd_stake_data_yyyy_avg[['matched_stakeID','stake_weight']], on='matched_stakeID', how='left')
-
-   
-    ''' --------------------
-    Get weighted RMSE per stake
-    - loop each unique stakeID to calculate temporal average
-    - then calculate weighted RMSE over all unique stakes, using the stake weights
-    -------------------- '''
-
-    ## loop unique stakes
-    stakeIDs = pd_stake_data_yyyy_avg['matched_stakeID'].to_list() # pd_stake_data_yyyy_avg.matched_stakeID.unique()
-
-    list_stakes_smb_pred_mean = []; list_stakes_smb_pred_mean_f111 = []
-    for stakeID in stakeIDs:
-        # print(f'Calculating weighted RMSE for stakeID={stakeID}...')
-        df_stake_rows = pd_stake_data_yyyy.loc[
-                            pd_stake_data_yyyy['matched_stakeID'] == stakeID]
-        ## current stake reading: get my smb value
-        ds_stake_stack = []; ds_stake_stack_f111 = []
-        for idx, stake_xyy in df_stake_rows.iterrows():
-            x_stake = stake_xyy.x_pos
-            y_stake = stake_xyy.y_pos
-            # w_stake = stake_xyy.stake_weight
-
-            ## closest px to stake location
-            ds_stake_smb      = ds_glacier_mb.interp(     x=stake_xyy.x_pos, y=stake_xyy.y_pos, method='linear') # (N, F) for every stake
-            ds_stake_smb_f111 = ds_glacier_mb_f111.interp(x=stake_xyy.x_pos, y=stake_xyy.y_pos, method='linear') # (Ng, Nf, F) for every stake
-            
-            ds_stake_stack.append(ds_stake_smb)
-            ds_stake_stack_f111.append(ds_stake_smb_f111)
-
-        ## stack individual stake readings
-        ds_stake_stack = xr.concat(ds_stake_stack, dim='stakeReading') # (time, N, F)
-        ds_stake_stack_f111 = xr.concat(ds_stake_stack_f111, dim='stakeReading') # (time, Ng, Nf, F)
-
-        ## mean predicted SMB for this stake
-        ds_smb_pred_stake_mean = ds_stake_stack.mean(dim='stakeReading') # (N,F)
-        ds_smb_pred_stake_mean_f111 = ds_stake_stack_f111.mean(dim='stakeReading') # (Ng, Nf, F)
-
-        ## add stakeID as coordinate
-        ds_smb_pred_stake_mean = ds_smb_pred_stake_mean.expand_dims(
-                                        {'stakeID': [stakeID]}) # (stakeID, N, F)
-        ds_smb_pred_stake_mean_f111 = ds_smb_pred_stake_mean_f111.expand_dims({'stakeID': [stakeID]}) # (stakeID, Ng, Nf, F)
-        ## drop unnecessary coordinates
-        try:
-            ds_smb_pred_stake_mean = ds_smb_pred_stake_mean.drop_vars({'x'}) # (stakeID, N, F)
-            ds_smb_pred_stake_mean_f111 = ds_smb_pred_stake_mean_f111.drop_vars({'x'}) # (stakeID, Ng, Nf, F)
-        except: pass
-        try:
-            ds_smb_pred_stake_mean = ds_smb_pred_stake_mean.drop_vars({'y'}) # (stakeID, N, F)
-            ds_smb_pred_stake_mean_f111 = ds_smb_pred_stake_mean_f111.drop_vars({'y'}) # (stakeID, Ng, Nf, F)
-        except: pass
-        
-        ## store in list
-        list_stakes_smb_pred_mean.append(ds_smb_pred_stake_mean) # (stakeID, N, F)
-        list_stakes_smb_pred_mean_f111.append(ds_smb_pred_stake_mean_f111)
-
-    ## stack average values of all unique stakes (stakeID, N, F)
-    ds_stakes_smb_pred_mean = xr.concat(list_stakes_smb_pred_mean, dim='stakeID',coords='all') # (stakeID, N, F)
-    ds_stakes_smb_pred_mean_f111 = xr.concat(list_stakes_smb_pred_mean_f111, dim='stakeID',coords='all') # (stakeID, Ng, Nf, F)
-
-    da_stake_smb_obs_mean = xr.DataArray(
-        pd_stake_data_yyyy_avg['mb_we_mean'].values,
-        coords={'stakeID': pd_stake_data_yyyy_avg['matched_stakeID'].values},
-        dims=['stakeID']
-    )
-    da_stake_obs_weights = xr.DataArray(
-        pd_stake_data_yyyy_avg['stake_weight'].values,
-        coords={'stakeID': pd_stake_data_yyyy_avg['matched_stakeID'].values},
-        dims=['stakeID']
-    )
-
-    ## calculate weighted RMSE over all stakes, for each N,F combination
-    w_sqerr = da_stake_obs_weights * (ds_stakes_smb_pred_mean - da_stake_smb_obs_mean) ** 2 # (stakeID, N, F)
-    w_RMSE_glacier = np.sqrt ( w_sqerr.sum(dim='stakeID', skipna=True) ) # (N,F)
-    ## used skipna=True means f000 has filled values of 0 at all N>0, re-set to NaN, and at f001 and f110 the value at N=0 is also 0 and should be NaN
-    w_RMSE_glacier['mb_f000'] = w_RMSE_glacier['mb_f000'].where(w_RMSE_glacier['mb_f000'] != 0, np.nan)
-    w_RMSE_glacier['mb_f001'] = w_RMSE_glacier['mb_f001'].where(w_RMSE_glacier['mb_f001'] != 0, np.nan)
-    w_RMSE_glacier['mb_f110'] = w_RMSE_glacier['mb_f110'].where(w_RMSE_glacier['mb_f110'] != 0, np.nan)
-
-    w_sqerr_f111 = da_stake_obs_weights * (ds_stakes_smb_pred_mean_f111 - da_stake_smb_obs_mean) ** 2 # (stakeID, Ng, Nf, F)
-    w_RMSE_glacier_f111 = np.sqrt ( w_sqerr_f111.sum(dim='stakeID', skipna=True) ) # (Ng, Nf, F)
-
-    ## make dataset with all output
-    ds_wrmse_stakes = xr.Dataset({
-            'rmse_f000': (('Nlength', 'Fparam'), w_RMSE_glacier['mb_f000'].data),
-            'rmse_f001': (('Nlength', 'Fparam'), w_RMSE_glacier['mb_f001'].data),
-            'rmse_f110': (('Nlength', 'Fparam'), w_RMSE_glacier['mb_f110'].data),
-            'rmse_f111': (('Ngrad', 'Nfdiv', 'Fparam'), w_RMSE_glacier_f111['mb_f111'].data)
-        },
-        coords={
-            'Nlength': N_values,
-            'Fparam': F_values
-        })  
     
 
     '''#############################################################
@@ -460,7 +344,7 @@ for glacier_sgiid in glamos_traintest.index[-3:-2]:
         else:
             print(f"File {os.path.basename(file_stakes)} already exists. Skipping saving ds_rmse_stakes.")
         
-    del gdf_glacier_rgi, glacier_sgiid
+    # del gdf_glacier_rgi, glacier_sgiid
     
 print('DONE')
 
