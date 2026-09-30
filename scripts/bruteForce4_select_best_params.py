@@ -38,12 +38,14 @@ import evalFunctions as evalF
 target_crs = 'EPSG:32632' ## EPSG of Millan2022 (50 m resolution), all files are processed in this CRS.
 swiss_crs = 'EPSG:21781' # 'EPSG:2056' ## CH1903 / LV95 ## data of GLAMOS stakes
 
-data_dir = '/Users/mizeboud/Documents/Data_iCloud/SMB2D/'
-# data_dir = '../data'
+# data_dir = '/Users/mizeboud/Documents/Data_iCloud/SMB2D/'
+data_dir = '../data'
 
 path2glacier_output = os.path.join(data_dir,'bruteForceTMP/glaciers/')
+# path2glacier_output = '../data/bruteForce/' ## dir with demo data
 path2saveRSME = os.path.join(data_dir, 'bruteForceTMP/rmse2glamos/')
 path2save_bestParams = os.path.join(data_dir,'bruteForceTMP/bestParams/')
+
 
 
 #%% load GLAMOS SGI info
@@ -56,14 +58,6 @@ glamos_traintest = pd.read_csv(glamos_traintest_file, index_col=0)
 glamos_traintest['RGI_match'] = glamos_traintest['RGI_match'].apply(ast.literal_eval)
 glamos_traintest.rename(columns={'name':'glacier_name'}, inplace=True)
 # df_glamos_sgi.reset_index(inplace=True) ## SGIID as column
-
-
-'''------------------
-## Glacier outlines (RGI shapefiles)
-------------------'''
-
-gdf_swiss_large = myf.load_rgi_outlines_swiss(filepath = os.path.join(data_dir,'RGI/11_rgi60_CentralEurope/11_rgi60_CentralEurope.shp'),
-                                          area_km2=2, target_crs=target_crs)
 
 
 
@@ -408,23 +402,6 @@ Extract bestParams and save to tiff
 #################################################################### '''
 
 
-''' hugonnet dhdt '''
-dhdt_hugo0020 = xr.open_dataarray(os.path.join(data_dir,
-                'GlacierElevationChange_Hugonnet2021/11_rgi60_2000-01-01_2020-01-01/',
-                'dhdt/dHdt_swiss_50m_epsg32632.tif')
-                ).isel(band=0).rename('dhdt')
-
-dhdt_hugo1020 = xr.open_dataarray(os.path.join(data_dir,
-                'GlacierElevationChange_Hugonnet2021/11_rgi60_2010-01-01_2020-01-01/',
-                'dhdt/dHdt_swiss_50m_epsg32632.tif')
-                ).isel(band=0).rename('dhdt')
-
-dhdt_hugo1520 = xr.open_dataarray(os.path.join(data_dir,
-                'GlacierElevationChange_Hugonnet2021/11_rgi60_2015-01-01_2020-01-01/',
-                'dhdt/dHdt_swiss_50m_epsg32632.tif')
-                ).isel(band=0).rename('dhdt')
-
-
 '''## get list of processed glaciers'''
 rgi_dir_list = [dir for dir in os.listdir(path2glacier_output) if dir.startswith("RGI")] ## 99 glaciers -- 100 with RGImerged for Claridenfirn
 rgi_dir_list.sort()
@@ -442,7 +419,6 @@ save_tiff = False
 
 ## set up directories
 os.makedirs(path2save_bestParams, exist_ok=True)
-os.makedirs(os.path.join(path2save_bestParams, 'fluxdiv'), exist_ok=True)
 
 for dhdt_period in ['2000-2020', '2010-2020', '2015-2020']:
     os.makedirs(os.path.join(path2save_bestParams, f'mb_{dhdt_period}'), exist_ok=True)
@@ -452,13 +428,6 @@ for dhdt_period in ['2000-2020', '2010-2020', '2015-2020']:
         # print(f".. processing {glacier_rgiid}")
         path2glacier = os.path.join(path2glacier_output, glacier_rgiid)
 
-        gdf_glacier_rgi = gdf_swiss_large.loc[gdf_swiss_large['RGIId'] == glacier_rgiid].copy()
-
-        ## Extract glacier elevation data and the RGI outlines 
-        da_dhdt1520 = dhdt_hugo1520.rio.clip(gdf_glacier_rgi.geometry, drop=True,all_touched=True)
-        da_dhdt1020 = dhdt_hugo1020.rio.clip(gdf_glacier_rgi.geometry, drop=True,all_touched=True)
-        da_dhdt0020 = dhdt_hugo0020.rio.clip(gdf_glacier_rgi.geometry, drop=True,all_touched=True)
-        dict_dhdt = {'2015-2020': da_dhdt1520, '2010-2020': da_dhdt1020, '2000-2020': da_dhdt0020}
 
         ## fluxdiv without density conversion (m i.e. /yr)
         ds_glacier_fdiv = xr.open_dataset(
@@ -480,7 +449,6 @@ for dhdt_period in ['2000-2020', '2010-2020', '2015-2020']:
             fname_fdiv = f'{glacier_rgiid}_fluxdiv-mie_{best_approach}_F{best_F_str}_N{best_N}.tif'
             da_fdiv_bestparams.rio.to_raster(os.path.join(path2save_bestParams, 'fluxdiv', fname_fdiv), driver='COG')
 
-            fname_mb = f'{glacier_rgiid}_mb-mwe_{best_approach}_F{best_F_str}_N{best_N}.tif'
-            da_mb_bestparams.rio.to_raster(os.path.join(path2save_bestParams, 
-                                                        f'mb_{dhdt_period}', fname_mb), driver='COG')
+            fname_mb = f'{glacier_rgiid}_mb-mwe_{dhdt_period}_{best_approach}_F{best_F_str}_N{best_N}.tif'
+            da_mb_bestparams.rio.to_raster(os.path.join(path2save_bestParams, fname_mb), driver='COG')
         

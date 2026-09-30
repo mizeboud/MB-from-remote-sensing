@@ -44,6 +44,7 @@ data_dir = '/Users/mizeboud/Documents/Data_iCloud/SMB2D/'
 target_crs = 'EPSG:32632' ## EPSG of Millan2022 (50 m resolution), all files are processed in this CRS.
 # data_dir = '../data/' ## data directory, where input data is stored and output will be saved
 path2glacier_output = os.path.join(data_dir,'bruteForceTMP/glaciers/')
+# path2glacier_output = '../data/bruteForce/' ## dir with demo data
 path2saveRSME = os.path.join(data_dir, 'bruteForceTMP/rmse2glamos/')
 
 
@@ -116,7 +117,7 @@ F_values = np.arange(0.75, 1.01, 0.05) # e.g., 0.75, 0.80, ..., 1.0
 Loop GLAMOS glaciers
 #################################################################### '''
 
-for glacier_sgiid in glamos_traintest.index:
+for glacier_sgiid in glamos_traintest.index[[0,9]]: ## Aletsch & Findel; demo glaciers
     ## glacier gdf
     df_glacier_sgi = df_glamos_sgi.loc[df_glamos_sgi['sgi-id']== glacier_sgiid] # select a row with multiple RGI  matches
     glacier_name = df_glacier_sgi['name'].item()
@@ -178,7 +179,6 @@ for glacier_sgiid in glamos_traintest.index:
     ds_glacier_mb_f111 = xr.open_dataset(
         os.path.join(path2glacier, 'mb', f'{glacier_rgiid}_mb-f111_{dhdt_period}_paramgrid.nc' ))
     ds_glacier_mb_f111.rio.write_crs('EPSG:32632', inplace=True)
-    
 
     '''#############################################################
     1. Calculate RMSE wrt elevation-bins
@@ -301,7 +301,7 @@ for glacier_sgiid in glamos_traintest.index:
 
     pd_stake_data_yyyy_avg, pd_stake_data_incl_weights = evalF.stake_data_get_weights_and_summary(pd_stake_data_yyyy)
 
-    ds_wrmse_stakes  = evalF.calculate_weighted_rmse_at_stakes(
+    ds_wrmse_stakes  = evalF.calculate_weighted_rmse_at_stakes_all_fXXX(
                                     ds_glacier_mb, ds_glacier_mb_f111, 
                                     pd_stake_data_yyyy_avg, pd_stake_data_incl_weights )
     # ds_wrmse_stakes is xr.dataset (Nlength, Fparam, Ngrad, Nfdiv) with variables rmse_f000, rmse_f001, rmse_f110, rmse_f111

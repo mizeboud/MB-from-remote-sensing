@@ -23,8 +23,8 @@ swiss_crs = 'EPSG:21781' # 'EPSG:2056' ## CH1903 / LV95 ## data of GLAMOS stakes
 data_dir = '/Users/mizeboud/Documents/Data_iCloud/SMB2D/'
 # data_dir = '../data'
 
+path2glacier_output = os.path.join('../../data/bruteForce/')
 path2glacier_output = os.path.join(data_dir,'bruteForceTMP/glaciers/')
-path2saveRSME = os.path.join(data_dir, 'bruteForceTMP/rmse2glamos/')
 
 
 path2save_figure = '../../figures/plot_evaluation_parameterGrid/'
@@ -131,8 +131,6 @@ for glacier_sgiid in ['B36-26', 'B56-03']: # Aletsch, Findel  //  glamos_trainte
     traintest_subset = glamos_traintest.loc[glamos_traintest.index == glacier_sgiid]['set'].item()
 
     '''## select a single glacier to evaluate'''
-    # glacier_stakefile = glamos_names_matched.loc[glamos_names_matched['SGIID']==glacier_sgiid]['stake_file'].item()
-    # glacier_stakefiles = [f for f in glacier_stakefile.split('; ')]
     glacier_stakefile = glamos_names_matched.loc[glamos_names_matched['SGIID']==glacier_sgiid]['stake_csv'].item()
     glacier_stakefiles = []
     assert isinstance(glacier_stakefile, str), f"Glacier stakefile for {glacier_sgiid} is not a string."
@@ -155,7 +153,6 @@ for glacier_sgiid in ['B36-26', 'B56-03']: # Aletsch, Findel  //  glamos_trainte
     
     ## get corresponding RGI
     glacier_rgiid = df_glamos_sgi.loc[df_glamos_sgi['sgi-id']==glacier_sgiid ]['RGI_match'].values[0]
-    # if len(glacier_rgiid) >1:
     if glacier_sgiid == 'A50i-19': ## manual fix for Clairdenfirn, as i've merged the 4 RGIs it consists of
         glacier_rgiid = 'RGI60-11.008merged'
     else:
@@ -209,8 +206,6 @@ for glacier_sgiid in ['B36-26', 'B56-03']: # Aletsch, Findel  //  glamos_trainte
                             start_year=glamos_y0,
     )
     
-
-
     
     ''' ################################
     # Bin 2D-MB to elevation
@@ -279,9 +274,6 @@ for glacier_sgiid in ['B36-26', 'B56-03']: # Aletsch, Findel  //  glamos_trainte
                                     mb_datasets, df_bestparams,
                                     mb_sem_datasets, plot_err,
                                     hmin_binned,
-                                    glamos_y0,
-                                    # pd_stake_data_yyyy = pd_stake_data_yyyy,
-                                    # dhdt_period
                                     )
     ax.set_title(f'{glacier_sgiid}, {glacier_rgiid}, {glacier_name}')
     if glacier_sgiid == 'B22-01': # glacier tsanfleuron, reset ylim
@@ -306,7 +298,7 @@ for glacier_sgiid in ['B36-26', 'B56-03']: # Aletsch, Findel  //  glamos_trainte
         filename = f'{glacier_sgiid}_{glacier_rgiid}_{glacier_name}_{dhdt_period}_glamos-binned-stakes_paramgrid.pdf'
         os.makedirs(path2save_figure, exist_ok=True)
         fig.savefig(os.path.join(path2save_figure,filename ), dpi=300, bbox_inches='tight')
-    plt.close(fig)
+    # plt.close(fig)
     
     ''' --------
     ## get RMSE at stake locations
@@ -330,7 +322,7 @@ for glacier_sgiid in ['B36-26', 'B56-03']: # Aletsch, Findel  //  glamos_trainte
     pd_stake_data_yyyy_avg, _ = evalF.stake_data_get_weights_and_summary(pd_stake_data_yyyy )
 
     ''' ## extract my MB at stake location, incl buffer '''
-    pd_stake_data_derivedMB = evalF.sample_model_mb_at_stake_locations(
+    pd_stake_data_derivedMB = evalF.sample_mb_at_stake_locations(
                                 {'f000': da_mb_f000,
                                  'f001': da_mb_f001,
                                  'f110': da_mb_f110,
@@ -339,7 +331,7 @@ for glacier_sgiid in ['B36-26', 'B56-03']: # Aletsch, Findel  //  glamos_trainte
                                 buffer_size_N=1.5,
                                 resolution_m=50)
 
-    ## add summary of derived MB values
+    ## add summary of derived MB values; unstack multi-columns
     pd_mb_fXXX_summary = pd_stake_data_derivedMB.groupby(
         'matched_stakeID', observed=False).agg(
         {   **{f'mb_{fXXX}_point': 'mean'       for fXXX in ('f000', 'f001', 'f110', 'f111') },
@@ -347,13 +339,6 @@ for glacier_sgiid in ['B36-26', 'B56-03']: # Aletsch, Findel  //  glamos_trainte
             **{f'mb_{fXXX}_buffer_std': 'mean'  for fXXX in ('f000', 'f001', 'f110', 'f111') },
         }
     ).reset_index()
-
-    ## rename columns
-    pd_mb_fXXX_summary = pd_mb_fXXX_summary.rename(
-        columns={   **{f'mb_{fXXX}_buffer_mean': f'mb_{fXXX}'      for fXXX in ('f000', 'f001', 'f110', 'f111') },
-                    **{f'mb_{fXXX}_point': f'mb_{fXXX}_point_mean' for fXXX in ('f000', 'f001', 'f110', 'f111') },
-        }
-    )
 
     ## merge to exisitng dataframe
     pd_stake_data_yyyy_avg = pd_stake_data_yyyy_avg.merge(
@@ -373,27 +358,23 @@ for glacier_sgiid in ['B36-26', 'B56-03']: # Aletsch, Findel  //  glamos_trainte
 
 
     ''' ## Calculate weighted RMSE for how many readings a stake has'''
-    def weighted_rmse(observations, predictions, weights):
-        """Calculate the weighted Root Mean Square Error."""
-        # normalize weights to sum to 1
-        weights = weights / np.sum(weights)
-        # Calculate the weighted RMSE
-        rmse = np.sqrt(np.sum(weights * (observations - predictions) ** 2))
-        return rmse
     
     rmse_values = {}
     for fXXX in ['f000', 'f001', 'f110','f111']:
-        rmse_values[fXXX] = weighted_rmse(pd_stake_data_yyyy_avg['mb_we_mean'],
-                               pd_stake_data_yyyy_avg[f'mb_{fXXX}_point_mean'],
+        rmse_values[fXXX] = evalF.weighted_rmse(pd_stake_data_yyyy_avg['mb_we_mean'], #obs
+                               pd_stake_data_yyyy_avg[f'mb_{fXXX}_point'], #predictions
                                 pd_stake_data_yyyy_avg['mb_we_count'] ## weigh by number of readings per stake, so that stakes with more readings (and thus more reliable average) have more weight in the RMSE calculation
                                 )
     
-
-    #%%
     '''-------------------
     ## plot stake data :  scatter
     ----------------------'''
-
+    ## rename columns
+    pd_stake_data_yyyy_avg = pd_stake_data_yyyy_avg.rename(
+        columns={  # **{f'mb_{fXXX}_buffer_mean': f'mb_{fXXX}'      for fXXX in ('f000', 'f001', 'f110', 'f111') },
+                    **{f'mb_{fXXX}_point': f'mb_{fXXX}' for fXXX in ('f000', 'f001', 'f110', 'f111') },
+        }
+    )
     
     '''## Scatterplot with RMSE values: weighted rmse and with f111'''
     # number of years in current dhdt period (for color pallete)
