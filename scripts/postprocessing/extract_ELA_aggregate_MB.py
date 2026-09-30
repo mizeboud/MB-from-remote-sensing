@@ -288,12 +288,6 @@ for idx in tqdm(range(len(files_to_process)), desc="Processing glaciers"):
     - median values of monteCarlo Uncertainty of glacier pixels
     - add some general values from RGI information and GLAMOS information (if available)
     ------------- '''
-
-    ### calculate AAR : basedo n initial segmented mask (should be updated with final ELA1 split)
-    total_px_count = da_segmented_binary.count().values
-    abl_px_count = da_segmented_binary.where(da_segmented_binary==-1).count().values
-    acc_px_count = da_segmented_binary.where(da_segmented_binary== 1).count().values
-    AAR0 = acc_px_count / total_px_count * 100 if total_px_count > 0 else np.nan
     
     total_px_count = int(da_mb_acc_abl_mask.count().item())
     acc_px_count = int((da_mb_acc_abl_mask == 1).sum().item())
