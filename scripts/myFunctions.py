@@ -37,21 +37,22 @@ def load_rgi_outlines_swiss(filepath,
     - Claridenfirn in SGI outlines is composed of multiple RGI glaciers
     - I want to process these RGIs as one --> merge
     '''
-    rgi_claridenfirn = ['RGI60-11.00817', 'RGI60-11.00819', 'RGI60-11.00843', 'RGI60-11.00878']
-    ## merge the 4 RGI regions
-    gdf_claridenfirn = rgi_outlines_swiss.loc[rgi_outlines_swiss['RGIId'].isin(rgi_claridenfirn)].dissolve() # merges all geometries into 1
-    gdf_claridenfirn['RGIId'] = 'RGI60-11.008merged' # make up new RGIId
-    gdf_claridenfirn['Name'] = 'Claridenfirn'
-    ## also update other fields
-    gdf_claridenfirn['Area'] = gdf_claridenfirn['Area'].sum()
-    gdf_claridenfirn['Zmin'] = gdf_claridenfirn['Zmin'].min()
-    gdf_claridenfirn['Zmax'] = gdf_claridenfirn['Zmax'].max()
-    gdf_claridenfirn[['Zmed','Slope','Surging','Aspect','Lmax','Linkages']] = np.nan
+    if area_km2 > 0 : # only merge if small glaciers are excluded
+        rgi_claridenfirn = ['RGI60-11.00817', 'RGI60-11.00819', 'RGI60-11.00843', 'RGI60-11.00878']
+        ## merge the 4 RGI regions
+        gdf_claridenfirn = rgi_outlines_swiss.loc[rgi_outlines_swiss['RGIId'].isin(rgi_claridenfirn)].dissolve() # merges all geometries into 1
+        gdf_claridenfirn['RGIId'] = 'RGI60-11.008merged' # make up new RGIId
+        gdf_claridenfirn['Name'] = 'Claridenfirn'
+        ## also update other fields
+        gdf_claridenfirn['Area'] = gdf_claridenfirn['Area'].sum()
+        gdf_claridenfirn['Zmin'] = gdf_claridenfirn['Zmin'].min()
+        gdf_claridenfirn['Zmax'] = gdf_claridenfirn['Zmax'].max()
+        gdf_claridenfirn[['Zmed','Slope','Surging','Aspect','Lmax','Linkages']] = np.nan
 
-    ## add merged glacier to gdf_swiss_large
-    gdf_swiss_large = pd.concat([gdf_swiss_large, gdf_claridenfirn], ignore_index=True)
+        ## add merged glacier to gdf_swiss_large
+        gdf_swiss_large = pd.concat([gdf_swiss_large, gdf_claridenfirn], ignore_index=True)
 
-    print(f'{len(gdf_swiss_large)} RGI glaciers with Area > {area_km2} km2 filtered (including Claridenfirn merged)')
+    # print(f'{len(gdf_swiss_large)} RGI glaciers with Area > {area_km2} km2 filtered (including Claridenfirn merged)')
     return gdf_swiss_large
 
 def reproject_match_grid( ref_img_da, img_da , resample_method=rio.enums.Resampling.nearest, nodata_value=np.nan):

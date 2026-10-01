@@ -1,0 +1,18 @@
+﻿SGIID,glamos_name,ISO name,stake_file,stake_csv,set
+B36-26,Grosser Aletschgletscher,Grosser Aletsch,aletsch_annual.dat,aletsch_annual.csv,train
+B82-27,Glacier d'Otemma,Otemma,otemma_annual.dat,otemma_annual.csv,train
+B56-14,Adlergletscher,Adler,adler_annual.dat,adler_annual.csv,train
+B52-29,Allalingletscher,Allalin,allalin_annual.dat,allalin_annual.csv,train
+B52-32,Hohlaubgletscher,Hohlaub,hohlaub_annual.dat,hohlaub_annual.csv,train
+A51e-37,Tiefengletscher,Tiefen,tiefen_annual.dat,tiefen_annual.csv,train
+E22-03,Vadret Pers and Vadret da Morteratsch,Morteratsch,morteratsch_annual.dat; pers_annual.dat,morteratsch-pers_annual.csv,train
+B22-01,Glacier de Tsanfleuron,Tsanfleuron,tsanfleuron_annual.dat,tsanfleuron_annual.csv,train
+B52-24,Schwarzberggletscher,Schwarzberg,schwarzberg_annual.dat,schwarzberg_annual.csv,train
+B56-03,Findelgletscher,Findelen,findelen_annual.dat,findelen_annual.csv,train
+B82-14,Glacier du Giétro,Giétro,gietro_annual.dat,gietro_annual.csv,train
+A55f-03,Glacier de la Plaine Morte,Plaine Morte,plainemorte_annual.dat,plainemorte_annual.csv,train
+B45-04,Griesgletscher,Gries,gries_annual.dat,gries_annual.csv,train
+A10g-05,Silvrettagletscher,Silvretta,silvretta_annual.dat,silvretta_annual.csv,test
+A50i-19,Claridenfirn,Clariden,clariden_annual.dat,clariden_annual.csv,test
+B43-03,Rhonegletscher,Rhone,rhone_annual.dat,rhone_annual.csv,test
+B83-03,Glacier de Corbassière,Corbassière,corbassiere_annual.dat,corbassiere_annual.csv,test
