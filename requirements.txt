@@ -1,0 +1,18 @@
+cmcrameri==1.9
+geopandas==1.1.2
+joblib==1.5.3
+matplotlib==3.11.2
+matplotlib_scalebar==0.9.0
+numba==0.63.1
+numpy==2.5.3
+pandas==3.0.6
+rasterio==1.5.0
+rioxarray==0.20.0
+scikit_learn==1.9.1
+scipy==1.18.1
+seaborn==0.13.2
+Shapely==2.1.2
+skimage==0.0
+tqdm==4.67.1
+xarray==2025.12.0
+# xarray ## install xarray with python -m pip install "xarray[complete]" for backend dependencies
