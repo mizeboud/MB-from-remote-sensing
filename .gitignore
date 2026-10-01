@@ -1,0 +1,6 @@
+## Ignore file for Git
+*.pyc
+.DS_Store
+*/.DS_Store
+.vscode/
+*/__pycache__/
